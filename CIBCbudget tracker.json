@@ -1,0 +1,373 @@
+{
+  "name": "CIBCbudget tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "a1004403-cc3c-41da-b19f-95c1a0c6ceef",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TALQmxw0TmhNkz1E",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{$json[\"id\"]}}\n"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "e50c54f7-4c86-4418-94f3-94389938e67f",
+      "name": "Get a message",
+      "webhookId": "2b688f89-18b2-431e-97c3-c284249125bc",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TALQmxw0TmhNkz1E",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const subject = $json.Subject || \"\";\nconst body = $json.snippet || \"\"; // or full body\n\nlet type = \"Unknown\";\nlet amountBDS = null;\nlet amountJMD = null;\nlet senderOrMerchant = null;\n\n// Conversion rate\nconst BDS_TO_JMD = 75;\n\n// Detect Money Received\nif (/You received money/i.test(subject) || /You have received/i.test(body)) {\n    type = \"Money Received\";\n    \n    const matchAmount = body.match(/\\$([\\d,]+\\.\\d{2})\\s*BBD/);\n    if (matchAmount) amountBDS = parseFloat(matchAmount[1].replace(/,/g, \"\"));\n    \n    const matchSender = body.match(/from\\s+([A-Za-z\\s]+)/i);\n    if (matchSender) senderOrMerchant = matchSender[1].trim();\n    \n    if (amountBDS) amountJMD = amountBDS * BDS_TO_JMD;\n}\n\n// Detect Card / Online Transaction\nelse if (/was charged/i.test(body) || /Card purchase/i.test(subject)) {\n    type = \"Card Purchase\";\n\n    const matchAmount = body.match(/\\$([\\d,]+\\.\\d{2})\\s*JMD/);\n    if (matchAmount) amountJMD = parseFloat(matchAmount[1].replace(/,/g, \"\"));\n    \n    const matchMerchant = body.match(/at\\s+([A-Za-z0-9\\*\\s,]+)/i);\n    if (matchMerchant) senderOrMerchant = matchMerchant[1].trim();\n    \n    if (amountJMD) amountBDS = amountJMD / BDS_TO_JMD;\n}\n\n// Detect Money Sent / Mobile Banking Transfer\nelse if (/You sent/i.test(subject) || /You sent/i.test(body) || /Mobile Banking Transfer/i.test(subject)) {\n    type = \"Money Sent\";\n    \n    const matchAmount = body.match(/\\$([\\d,]+\\.\\d{2})\\s*BBD/);\n    if (matchAmount) amountBDS = parseFloat(matchAmount[1].replace(/,/g, \"\"));\n    \n    const matchRecipient = body.match(/to\\s+([A-Za-z\\s]+)/i);\n    if (matchRecipient) senderOrMerchant = matchRecipient[1].trim();\n    \n    if (amountBDS) amountJMD = amountBDS * BDS_TO_JMD;\n}\n\n// Detect Attempted Send\nelse if (/Attempted send/i.test(subject) || /You attempted to send/i.test(body)) {\n    type = \"Attempted Send\";\n    const match = body.match(/\\$([\\d,]+\\.\\d{2})\\s*BBD/);\n    if (match) amountBDS = parseFloat(match[1].replace(/,/g, \"\"));\n    if (amountBDS) amountJMD = amountBDS * BDS_TO_JMD;\n}\n\n// Transaction date\nconst date = new Date(parseInt($json.internalDate));\n\nreturn {\n    json: {\n        bank: \"CIBC\",\n        type,\n        amountBDS,\n        amountJMD,\n        senderOrMerchant,\n        subject,\n        date: date.toISOString(),\n        raw: body\n    }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "82819c5c-f0ec-4269-b876-ee291c5094c0",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1lfQM2-KBwVtbIHJNifrOz_vIHNBcseioIFostvzDby4/edit?gid=1709007722#gid=1709007722",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1709007722,
+          "mode": "list",
+          "cachedResultName": "Spending",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lfQM2-KBwVtbIHJNifrOz_vIHNBcseioIFostvzDby4/edit#gid=1709007722"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.date }}",
+            "Bank/Card": "={{ $json.bank }}",
+            "Amount (BDS)": "={{ $json.amountBDS }}",
+            "Amount (JMD)": "={{ $json.amountJMD }}",
+            "Merchant": "={{ $json.senderOrMerchant }}",
+            "Description": "={{ $json.raw }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Merchant",
+              "displayName": "Merchant",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Bank/Card",
+              "displayName": "Bank/Card",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount (BDS)",
+              "displayName": "Amount (BDS)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount (JMD)",
+              "displayName": "Amount (JMD)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Description",
+              "displayName": "Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1168,
+        64
+      ],
+      "id": "5b988e15-d63a-4658-9645-24d3076999f2",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ges8riR0tiQC42rV",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "212915d7-eec1-4b1e-b67d-a186691d84aa",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "Money Received",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        784,
+        32
+      ],
+      "id": "fbebf917-2ce8-431e-9125-be50ae0735c2",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1lfQM2-KBwVtbIHJNifrOz_vIHNBcseioIFostvzDby4/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Income",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lfQM2-KBwVtbIHJNifrOz_vIHNBcseioIFostvzDby4/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.date }}",
+            "Bank/Card": "={{ $json.bank }}",
+            "Amount (BDS)": "={{ $json.amountBDS }}",
+            "Amount (JMD)": "={{ $json.amountJMD }}",
+            "Description": "={{ $json.raw }}",
+            "Source": "={{ $json.sender }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Bank/Card",
+              "displayName": "Bank/Card",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount (BDS)",
+              "displayName": "Amount (BDS)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount (JMD)",
+              "displayName": "Amount (JMD)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Description",
+              "displayName": "Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1040,
+        -80
+      ],
+      "id": "a1b63882-1361-48e7-b7b0-21df990a149c",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ges8riR0tiQC42rV",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        []
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "18a42db9-e54b-4432-8af5-7d9d4fc8472d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0d85355a7e76c4df97a43d6e161616dc74634b61cfd8a3bd583cb7611b384d70"
+  },
+  "id": "MzFoGJ56eBRuF8Pv",
+  "tags": []
+}
