@@ -1,13 +1,13 @@
 CIBC Budget Tracker (n8n Workflow)
 Overview
 
-This project is an automated budget tracker built using n8n. It monitors your Gmail account for CIBC and NCB card notifications, extracts transaction data, and logs it into a Google Sheet with a dynamic dashboard. The Google Sheet automatically tracks income, spending, and current balances in both BBD and JMD currencies.
+This project is an automated budget tracker built using n8n. It monitors your Gmail account for CIBC card notifications with potential to monitor for other banks e.g scotia and ncb.However,CIBC's interface is easier to integrate. It then extracts transaction data, and logs it into a Google Sheet with a dynamic dashboard. The Google Sheet automatically tracks income, spending, and current balances in both BBD and JMD currencies.
 
 The workflow includes:
 
 Parsing incoming emails for approved card transactions, money received, and attempted sends.
 
-Detecting the bank/card type (CIBC or NCB).
+Detecting the bank/card type (e.g CIBC / NCB).
 
 Extracting amounts, merchants/senders, and transaction dates.
 
